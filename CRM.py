@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import altair as alt
 
 # --- Path Excel ---
 file_path = r"C:\Users\user\Documents\CRM UPGRADE TEXTEK\CRM Analyst.xlsx"
@@ -85,6 +84,33 @@ elif current_sheet == "Kategori Buyer":
     st.subheader("Tabel Kategori Buyer")
     st.dataframe(df.style.apply(highlight_buyer, axis=1))
 
+    # Ringkasan tulisan
+    st.subheader("Jumlah per Kategori")
+    jumlah_per_kategori = {
+        "Active Buyer":5,
+        "Cooling Buyer":8,
+        "Dormant Buyer":5,
+        "Inactive Buyer":6,
+        "Lost Buyer":22,
+        "Very Inactive Buyer":5,
+        "Warm Buyer":12
+    }
+    for k,v in jumlah_per_kategori.items():
+        st.write(f"{k} -> {v}")
+
+    st.subheader("Rata-rata Jarak Pembelian per Kategori")
+    rata_per_kategori = {
+        "Active Buyer":22,
+        "Cooling Buyer":8,
+        "Warm Buyer":14,
+        "Lost Buyer":6,
+        "Dormant Buyer":35,
+        "Very Inactive Buyer":10,
+        "Inactive Buyer":18
+    }
+    for k,v in rata_per_kategori.items():
+        st.write(f"{k} -> {v} hari")
+
 # =========================
 # SHEET 3: MARKETING ADS
 # =========================
@@ -92,13 +118,9 @@ elif current_sheet == "Marketing Ads":
     df_marketing = pd.read_excel(file_path, sheet_name="Marketing Ads", engine='openpyxl')
     df_marketing.index = range(1, len(df_marketing)+1)
 
+    # Pie Chart
     st.subheader("Marketing Ads")
-    chart = alt.Chart(df_marketing).mark_arc().encode(
-        theta=alt.Theta(field="Jumlah", type="quantitative"),
-        color=alt.Color(field="Channel", type="nominal"),
-        tooltip=['Channel','Jumlah']
-    )
-    st.altair_chart(chart, use_container_width=True)
+    st.pyplot(df_marketing.plot.pie(y='Jumlah', labels=df_marketing['Channel'], autopct='%1.1f%%').figure)
 
     # Ringkasan insight simple
     top_channel = df_marketing.loc[df_marketing['Jumlah'].idxmax(), 'Channel']
@@ -112,9 +134,7 @@ elif current_sheet == "Pertumbuhan Pelanggan":
     df = pd.read_excel(file_path, sheet_name="Pertumbuhan Pelanggan", engine='openpyxl')
     df.columns = df.columns.str.strip()
     df['Jumlah Pelanggan'] = pd.to_numeric(df['Jumlah Pelanggan'], errors='coerce').fillna(0)
-    df = df.dropna(subset=['Bulan'])
 
-    # Session state
     if 'growth_data' not in st.session_state:
         st.session_state.growth_data = df.copy()
 
@@ -124,7 +144,7 @@ elif current_sheet == "Pertumbuhan Pelanggan":
         bulan = st.text_input("Bulan")
         jumlah = st.number_input("Jumlah Pelanggan", min_value=0, step=1)
         submitted = st.form_submit_button("Tambah")
-        if submitted and bulan:
+        if submitted:
             new_row = pd.DataFrame({'Bulan':[bulan],'Jumlah Pelanggan':[jumlah]})
             st.session_state.growth_data = pd.concat([st.session_state.growth_data, new_row], ignore_index=True)
             st.success(f"{bulan} berhasil ditambahkan!")
@@ -139,19 +159,30 @@ elif current_sheet == "Pertumbuhan Pelanggan":
 
     # --- Tampilkan Tabel ---
     df_display = st.session_state.growth_data.sort_values(by='Jumlah Pelanggan', ascending=False).reset_index(drop=True)
-    df_display.index = range(len(df_display))  # mulai dari 0 supaya logika chart stabil
+    df_display.index = range(1, len(df_display)+1)
 
-    # Tambah emoji 🔼🔽/—
-    df_display['Trend'] = '🔽'
-    if len(df_display) >= 1:
-        df_display.loc[0,'Trend'] = '🔼'
-    if len(df_display) >= 2:
-        df_display.loc[1,'Trend'] = '🔼'
-    if len(df_display) >= 3:
-        df_display.loc[2,'Trend'] = '—'
+    # Tambah Trend Icon & Warna
+    df_display['Trend'] = ''
+    for i in range(len(df_display)):
+        if i <= 2:  # Top 3
+            df_display.at[i, 'Trend'] = '🔼'
+        elif i == 3:  # Nomor 4
+            df_display.at[i, 'Trend'] = '—'
+        else:  # Bawah 5
+            df_display.at[i, 'Trend'] = '🔽'
+
+    def highlight_trend(row):
+        if row['Trend'] == '🔼':
+            return ['background-color: lightgreen']*len(row)
+        elif row['Trend'] == '—':
+            return ['background-color: lightyellow']*len(row)
+        elif row['Trend'] == '🔽':
+            return ['background-color: lightcoral']*len(row)
+        else:
+            return ['']*len(row)
 
     st.subheader("Tabel Pertumbuhan Pelanggan")
-    st.dataframe(df_display[['Bulan','Jumlah Pelanggan','Trend']])
+    st.dataframe(df_display.style.apply(highlight_trend, axis=1))
 
 # =========================
 # SHEET 5L: PRODUK POPULER
