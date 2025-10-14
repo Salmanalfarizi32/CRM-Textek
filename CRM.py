@@ -173,7 +173,7 @@ elif current_sheet == "Pertumbuhan Pelanggan":
     df_display = st.session_state.growth_data.sort_values(by='Jumlah Pelanggan', ascending=False).reset_index(drop=True)
     df_display.index = range(len(df_display))  # pakai 0-based supaya logika trend bener
 
-    # Trend: 🔼 top 3 hijau, nomor 3 strip, sisanya 🔽 merah
+    # Trend: 🔼 top 3 hijau, nomor 4 strip kuning, sisanya 🔽 merah
     df_display['Trend'] = ''
     for i in range(len(df_display)):
         if i < 3:
@@ -183,8 +183,20 @@ elif current_sheet == "Pertumbuhan Pelanggan":
         else:
             df_display.loc[i, 'Trend'] = '🔽'
 
+    # Highlight berdasarkan Trend
+    def highlight_trend(row):
+        if row['Trend'] == '🔼':
+            return ['background-color: lightgreen']*len(row)
+        elif row['Trend'] == '—':
+            return ['background-color: lightyellow']*len(row)
+        elif row['Trend'] == '🔽':
+            return ['background-color: lightcoral']*len(row)
+        else:
+            return ['']*len(row)
+
     st.subheader("Tabel Pertumbuhan Pelanggan")
-    st.dataframe(df_display[['Bulan','Jumlah Pelanggan','Trend']])
+    st.dataframe(df_display.style.apply(highlight_trend, axis=1))
+
 
 # =========================
 # SHEET 5: PRODUK POPULER
