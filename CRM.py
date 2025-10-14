@@ -1,8 +1,15 @@
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
+import os
 
-# --- Path Excel ---
-file_path = r"C:\Users\user\Documents\CRM UPGRADE TEXTEK\CRM Analyst.xlsx"
+# --- Path Excel (relative path untuk Streamlit Cloud) ---
+file_path = os.path.join(os.getcwd(), "CRM Analyst.xlsx")
+
+# Cek file ada nggak
+if not os.path.exists(file_path):
+    st.error(f"File CRM Analyst.xlsx tidak ditemukan. Pastikan file ada di repo yang sama dengan CRM.py.")
+    st.stop()
 
 # --- Pilih Sheet ---
 sheet_options = ["VIP BUYER", "Kategori Buyer", "Marketing Ads", "Pertumbuhan Pelanggan", "Produk Populer", "Produk Favorit Customer"]
@@ -84,33 +91,6 @@ elif current_sheet == "Kategori Buyer":
     st.subheader("Tabel Kategori Buyer")
     st.dataframe(df.style.apply(highlight_buyer, axis=1))
 
-    # Ringkasan tulisan
-    st.subheader("Jumlah per Kategori")
-    jumlah_per_kategori = {
-        "Active Buyer":5,
-        "Cooling Buyer":8,
-        "Dormant Buyer":5,
-        "Inactive Buyer":6,
-        "Lost Buyer":22,
-        "Very Inactive Buyer":5,
-        "Warm Buyer":12
-    }
-    for k,v in jumlah_per_kategori.items():
-        st.write(f"{k} -> {v}")
-
-    st.subheader("Rata-rata Jarak Pembelian per Kategori")
-    rata_per_kategori = {
-        "Active Buyer":22,
-        "Cooling Buyer":8,
-        "Warm Buyer":14,
-        "Lost Buyer":6,
-        "Dormant Buyer":35,
-        "Very Inactive Buyer":10,
-        "Inactive Buyer":18
-    }
-    for k,v in rata_per_kategori.items():
-        st.write(f"{k} -> {v} hari")
-
 # =========================
 # SHEET 3: MARKETING ADS
 # =========================
@@ -135,6 +115,10 @@ elif current_sheet == "Pertumbuhan Pelanggan":
     df.columns = df.columns.str.strip()
     df['Jumlah Pelanggan'] = pd.to_numeric(df['Jumlah Pelanggan'], errors='coerce').fillna(0)
 
+    # Hapus baris kosong / None
+    df = df.dropna(subset=['Bulan','Jumlah Pelanggan']).reset_index(drop=True)
+
+    # Session state
     if 'growth_data' not in st.session_state:
         st.session_state.growth_data = df.copy()
 
@@ -159,33 +143,23 @@ elif current_sheet == "Pertumbuhan Pelanggan":
 
     # --- Tampilkan Tabel ---
     df_display = st.session_state.growth_data.sort_values(by='Jumlah Pelanggan', ascending=False).reset_index(drop=True)
-    df_display.index = range(1, len(df_display)+1)
+    df_display.index = range(len(df_display))  # pakai 0-based supaya logika trend bener
 
-    # Tambah Trend Icon & Warna
+    # Trend: 🔼 top 3 hijau, nomor 3 strip, sisanya 🔽 merah
     df_display['Trend'] = ''
     for i in range(len(df_display)):
-        if i <= 2:  # Top 3
-            df_display.at[i, 'Trend'] = '🔼'
-        elif i == 3:  # Nomor 4
-            df_display.at[i, 'Trend'] = '—'
-        else:  # Bawah 5
-            df_display.at[i, 'Trend'] = '🔽'
-
-    def highlight_trend(row):
-        if row['Trend'] == '🔼':
-            return ['background-color: lightgreen']*len(row)
-        elif row['Trend'] == '—':
-            return ['background-color: lightyellow']*len(row)
-        elif row['Trend'] == '🔽':
-            return ['background-color: lightcoral']*len(row)
+        if i < 3:
+            df_display.loc[i, 'Trend'] = '🔼'
+        elif i == 3:
+            df_display.loc[i, 'Trend'] = '—'
         else:
-            return ['']*len(row)
+            df_display.loc[i, 'Trend'] = '🔽'
 
     st.subheader("Tabel Pertumbuhan Pelanggan")
-    st.dataframe(df_display.style.apply(highlight_trend, axis=1))
+    st.dataframe(df_display[['Bulan','Jumlah Pelanggan','Trend']])
 
 # =========================
-# SHEET 5L: PRODUK POPULER
+# SHEET 5: PRODUK POPULER
 # =========================
 elif current_sheet == "Produk Populer":
     df = pd.read_excel(file_path, sheet_name="Produk Populer", engine='openpyxl')
