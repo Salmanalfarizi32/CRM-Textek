@@ -4,7 +4,7 @@ import altair as alt
 from openpyxl import load_workbook
 
 # --- Path Excel ---
-file_path = r"C:\Users\user\Documents\CRM UPGRADE TEXTEK\CRM Analyst.xlsx"
+file_path = r"C:\Users\user\Documents\CRM-Textek\CRM Analyst.xlsx"
 
 # --- Helper Aman: Simpan ke Sheet tanpa Overwrite Workbook ---
 def save_to_excel_safely(df, file_path, sheet_name):
