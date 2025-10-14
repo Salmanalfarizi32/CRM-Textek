@@ -91,6 +91,34 @@ elif current_sheet == "Kategori Buyer":
     st.subheader("Tabel Kategori Buyer")
     st.dataframe(df.style.apply(highlight_buyer, axis=1))
 
+# Ringkasan tulisan
+    st.subheader("Ringkasan Jumlah per Kategori")
+    jumlah_per_kategori = {
+        "Active Buyer":5,
+        "Cooling Buyer":8,
+        "Dormant Buyer":5,
+        "Inactive Buyer":6,
+        "Lost Buyer":22,
+        "Very Inactive Buyer":5,
+        "Warm Buyer":12
+    }
+    for k,v in jumlah_per_kategori.items():
+        st.write(f"{k} -> {v}")
+
+    st.subheader("Rata-rata Jarak Pembelian per Kategori")
+    rata_per_kategori = {
+        "Active Buyer":22,
+        "Cooling Buyer":8,
+        "Warm Buyer":14,
+        "Lost Buyer":6,
+        "Dormant Buyer":35,
+        "Very Inactive Buyer":10,
+        "Inactive Buyer":18
+    }
+    for k,v in rata_per_kategori.items():
+        st.write(f"{k} -> {v} hari")
+
+
 # =========================
 # SHEET 3: MARKETING ADS
 # =========================
