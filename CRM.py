@@ -2,19 +2,32 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 from openpyxl import load_workbook
+import os
+import matplotlib.pyplot as plt
 
-# --- Path Excel ---
-file_path = r"C:\Users\user\Documents\CRM-Textek\CRM Analyst.xlsx"
+# ==============================
+# FILE SETUP (Cloud Friendly)
+# ==============================
+# File harus berada di folder yang sama dengan script ini
+file_path = os.path.join(os.getcwd(), "CRM Analyst.xlsx")
 
-# --- Helper Aman: Simpan ke Sheet tanpa Overwrite Workbook ---
+if not os.path.exists(file_path):
+    st.error("❌ File 'CRM Analyst.xlsx' tidak ditemukan. Pastikan file diunggah ke repository GitHub.")
+    st.stop()
+
+# ==============================
+# HELPER SAVE
+# ==============================
 def save_to_excel_safely(df, file_path, sheet_name):
     book = load_workbook(file_path)
     with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
         writer.book = book
         df.to_excel(writer, sheet_name=sheet_name, index=False)
-        writer.save()
+    writer.close()
 
-# --- Pilih Sheet ---
+# ==============================
+# PILIH SHEET
+# ==============================
 sheet_options = [
     "VIP BUYER",
     "Kategori Buyer",
@@ -23,208 +36,118 @@ sheet_options = [
     "Produk Populer",
     "Produk Favorit Customer"
 ]
-current_sheet = st.selectbox("Pilih Sheet CRM", sheet_options)
+current_sheet = st.selectbox("📊 Pilih Sheet CRM", sheet_options)
 
-# =========================
+# ==============================
 # SHEET 1: VIP BUYER
-# =========================
+# ==============================
 if current_sheet == "VIP BUYER":
     df = pd.read_excel(file_path, sheet_name="VIP BUYER", engine='openpyxl')
-    df.columns = df.columns.map(lambda x: str(x).strip() if x is not None else x)
+    df.columns = df.columns.map(lambda x: str(x).strip())
 
-    # Bersihkan Total Transaksi
     df['Total Transaksi'] = df['Total Transaksi'].replace(['-', '', ' '], 0)
     df['Total Transaksi'] = df['Total Transaksi'].replace('[Rp$,]', '', regex=True)
     df['Total Transaksi'] = pd.to_numeric(df['Total Transaksi'], errors='coerce').fillna(0)
 
-    # Session state
     if 'vip_data' not in st.session_state:
         st.session_state.vip_data = df.copy()
 
-    # --- Form Tambah Data ---
-    st.subheader("Tambah Data Baru")
+    st.subheader("➕ Tambah Data Baru")
     with st.form("add_form"):
         nama = st.text_input("Nama Pelanggan")
         jumlah = st.number_input("Jumlah Transaksi", min_value=0, step=1)
         total = st.number_input("Total Transaksi (Rp)", min_value=0, step=1000)
         submitted = st.form_submit_button("Tambah")
-        if submitted:
-            if nama.strip() != "":
-                new_row = pd.DataFrame({
-                    'Nama Pelanggan': [nama],
-                    'Jumlah Transaksi': [jumlah],
-                    'Total Transaksi': [total]
-                })
-                st.session_state.vip_data = pd.concat([st.session_state.vip_data, new_row], ignore_index=True)
-                st.success(f"✅ {nama} berhasil ditambahkan!")
-            else:
-                st.warning("Nama pelanggan tidak boleh kosong.")
+        if submitted and nama.strip():
+            new_row = pd.DataFrame({
+                'Nama Pelanggan': [nama],
+                'Jumlah Transaksi': [jumlah],
+                'Total Transaksi': [total]
+            })
+            st.session_state.vip_data = pd.concat([st.session_state.vip_data, new_row], ignore_index=True)
+            st.success(f"✅ {nama} berhasil ditambahkan!")
 
-    # --- Form Hapus Data ---
-    st.subheader("Hapus Data")
+    st.subheader("🗑️ Hapus Data")
     if len(st.session_state.vip_data) > 0:
         delete_name = st.selectbox("Pilih Nama Pelanggan yang akan dihapus", st.session_state.vip_data['Nama Pelanggan'])
         if st.button("Hapus"):
-            st.session_state.vip_data = st.session_state.vip_data[st.session_state.vip_data['Nama Pelanggan'] != delete_name]
+            st.session_state.vip_data = st.session_state.vip_data[
+                st.session_state.vip_data['Nama Pelanggan'] != delete_name
+            ]
             st.success(f"🗑️ {delete_name} berhasil dihapus!")
 
-    # --- Tampilkan Tabel VIP BUYER ---
     df_display = st.session_state.vip_data.sort_values(by='Total Transaksi', ascending=False).reset_index(drop=True)
     df_display.index = range(1, len(df_display)+1)
 
-    # Highlight Top 10
-    top10_idx = df_display.index[:10]
     def highlight_top10_all(row):
-        if row.name in top10_idx[:3]:
+        if row.name < 3:
             return ['background-color: lightgreen'] * len(row)
-        elif row.name in top10_idx[3:10]:
+        elif row.name < 10:
             return ['background-color: lightyellow'] * len(row)
-        else:
-            return [''] * len(row)
+        return [''] * len(row)
 
-    st.subheader("Tabel VIP BUYER")
+    st.subheader("📋 Tabel VIP BUYER")
     st.dataframe(df_display.style.format({'Total Transaksi': 'Rp {:,.0f}'}).apply(highlight_top10_all, axis=1))
 
-
-# =========================
+# ==============================
 # SHEET 2: KATEGORI BUYER
-# =========================
+# ==============================
 elif current_sheet == "Kategori Buyer":
     df = pd.read_excel(file_path, sheet_name="Kategori Buyer", engine='openpyxl')
     df.columns = df.columns.str.strip()
     df = df[['Nama Customer','Repeat Status','Buyer Status']]
     df.index = range(1, len(df)+1)
 
-    # Highlight Buyer Status
-    buyer_color = ['#FFC0CB','#ADD8E6','#90EE90','#FFFFE0','#FFA07A','#D8BFD8','#F0E68C']
-    buyer_categories = ['Active Buyer','Cooling Buyer','Dormant Buyer','Inactive Buyer','Lost Buyer','Very Inactive Buyer','Warm Buyer']
-    buyer_map = {v: buyer_color[i] for i,v in enumerate(buyer_categories)}
-    def highlight_buyer(x):
-        return [f'background-color: {buyer_map.get(v,"")}' if col=='Buyer Status' else '' for col,v in zip(x.index,x)]
+    buyer_color = {
+        'Active Buyer': '#90EE90',
+        'Cooling Buyer': '#FFFFE0',
+        'Dormant Buyer': '#ADD8E6',
+        'Inactive Buyer': '#D8BFD8',
+        'Lost Buyer': '#FFA07A',
+        'Very Inactive Buyer': '#F0E68C',
+        'Warm Buyer': '#FFC0CB'
+    }
 
-    st.subheader("Tabel Kategori Buyer")
+    def highlight_buyer(x):
+        return [f'background-color: {buyer_color.get(x["Buyer Status"], "")}' if col == 'Buyer Status' else '' for col in x.index]
+
+    st.subheader("📋 Tabel Kategori Buyer")
     st.dataframe(df.style.apply(highlight_buyer, axis=1))
 
-    # Ringkasan Kategori Buyer 
-    st.subheader("Ringkasan Jumlah per Kategori")
-    jumlah_per_kategori = {
-        "Active Buyer":5,
-        "Cooling Buyer":8,
-        "Dormant Buyer":5,
-        "Inactive Buyer":6,
-        "Lost Buyer":22,
-        "Very Inactive Buyer":5,
-        "Warm Buyer":12
-    }
-    for k,v in jumlah_per_kategori.items():
-        st.write(f"{k} → {v}")
-
-    st.subheader("Rata-rata Jarak Pembelian per Kategori")
-    rata_per_kategori = {
-        "Active Buyer":22,
-        "Cooling Buyer":8,
-        "Warm Buyer":14,
-        "Lost Buyer":6,
-        "Dormant Buyer":35,
-        "Very Inactive Buyer":10,
-        "Inactive Buyer":18
-    }
-    for k,v in rata_per_kategori.items():
-        st.write(f"{k} → {v} hari")
-
-    # =========================
-    # Ringkasan Buyer Status - Versi Formal
-    # =========================
-    st.subheader("Ringkasan Buyer Status")
-    st.markdown("""
-**Repeat Buyer:** Pelanggan yang telah melakukan transaksi lebih dari satu kali, menunjukkan loyalitas dan potensi tinggi untuk pembelian berulang.  
-**Non-Repeat Buyer:** Pelanggan yang baru melakukan satu kali transaksi, memerlukan perhatian untuk meningkatkan kemungkinan repeat order.
-
----
-
-🟢 **Active Buyer (≤15 hari)**  
-Pelanggan yang baru saja melakukan transaksi atau masih sangat aktif.  
-➡️ Potensi tinggi untuk pembelian berulang; cukup pertahankan kualitas layanan dan komunikasi.
-
-🟡 **Warm Buyer (16–30 hari)**  
-Pelanggan yang masih menunjukkan minat, namun frekuensi pembelian menurun.  
-➡️ Strategi ringan seperti promo atau follow-up ramah dapat meningkatkan peluang transaksi berikutnya.
-
-🟠 **Cooling Buyer (31–45 hari)**  
-Frekuensi pembelian mulai menurun secara signifikan.  
-➡️ Dibutuhkan stimulasi seperti diskon terbatas, pengingat produk baru, atau kampanye “kami merindukan Anda”.
-
-🔵 **Dormant Buyer (46–60 hari)**  
-Pelanggan yang sudah cukup lama tidak melakukan pembelian.  
-➡️ Strategi reaktivasi diperlukan melalui komunikasi personal, voucher, atau pesan langsung.
-
-🟣 **Inactive Buyer (61–90 hari)**  
-Pelanggan dalam fase tidak aktif yang lebih lama.  
-➡️ Dibutuhkan pendekatan berbasis nilai atau emosional, bukan sekadar promosi.
-
-⚫ **Very Inactive Buyer (91–120 hari)**  
-Pelanggan hampir tidak aktif, namun masih memungkinkan untuk dikembalikan.  
-➡️ Perlu alasan kuat untuk melakukan pembelian kembali, misalnya produk baru atau penawaran khusus.
-
-🔴 **Lost Buyer (>120 hari)**  
-Pelanggan yang kemungkinan besar sudah hilang.  
-➡️ Data ini dapat digunakan untuk analisis churn dan strategi pencegahan agar pelanggan lain tidak menjadi lost.
-""")
-
-# =========================
+# ==============================
 # SHEET 3: MARKETING ADS
-# =========================
+# ==============================
 elif current_sheet == "Marketing Ads":
     df_marketing = pd.read_excel(file_path, sheet_name="Marketing Ads", engine='openpyxl')
-    df_marketing.columns = df_marketing.columns.str.strip()
     df_marketing['Jumlah'] = pd.to_numeric(df_marketing['Jumlah'], errors='coerce').fillna(0)
 
-    st.subheader("Distribusi Channel Marketing")
-    st.write("Berikut adalah distribusi jumlah customer berdasarkan channel marketing:")
+    st.subheader("📊 Distribusi Channel Marketing")
 
-    # --- Warna konsisten per channel ---
     color_map = {
-        "Instagram": "#1F77B4",   # biru muda
-        "Facebook": "#2E86AB",    # biru tua
-        "WhatsApp Ads": "#28B463",# hijau
-        "Non-Ads": "#A9A9A9",     # abu
-        "TikTok": "#E74C3C",      # merah
-        "Website": "#F1C40F",     # kuning
+        "Instagram": "#1F77B4",
+        "Facebook": "#2E86AB",
+        "WhatsApp Ads": "#28B463",
+        "Non-Ads": "#A9A9A9",
+        "TikTok": "#E74C3C",
+        "Website": "#F1C40F",
     }
 
     colors = [color_map.get(ch, "#CCCCCC") for ch in df_marketing['Channel']]
 
-    # --- Pie Chart dengan label & legend ---
-    import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
-    wedges, texts, autotexts = ax.pie(
+    wedges, _, autotexts = ax.pie(
         df_marketing['Jumlah'],
-        labels=None,  # label diganti legend biar clean
         autopct='%1.1f%%',
         startangle=90,
-        colors=colors,
-        textprops={'fontsize': 10, 'color': 'white'}
+        colors=colors
     )
-
     for t in autotexts:
         t.set_color('black')
         t.set_fontweight('bold')
 
     ax.axis('equal')
-    ax.legend(
-        wedges,
-        df_marketing['Channel'],
-        title="Channel Marketing",
-        loc="center left",
-        bbox_to_anchor=(1, 0, 0.5, 1)
-    )
-
+    ax.legend(wedges, df_marketing['Channel'], title="Channel Marketing", loc="center left", bbox_to_anchor=(1, 0, 0.5, 1))
     st.pyplot(fig)
-
-    # --- Ringkasan Insight ---
-    top_channel = df_marketing.loc[df_marketing['Jumlah'].idxmax(), 'Channel']
-    st.subheader("Ringkasan Insight")
-    st.write(f"Dari data marketing ads, **{top_channel}** adalah yang paling efektif menarik customer karena memiliki persentase tertinggi.")
 
 # =========================
 # SHEET 4: PERTUMBUHAN PELANGGAN
