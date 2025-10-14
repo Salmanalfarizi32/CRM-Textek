@@ -1,15 +1,9 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import os
+import altair as alt
 
-# --- Path Excel (relative path untuk Streamlit Cloud) ---
-file_path = os.path.join(os.getcwd(), "CRM Analyst.xlsx")
-
-# Cek file ada nggak
-if not os.path.exists(file_path):
-    st.error(f"File CRM Analyst.xlsx tidak ditemukan. Pastikan file ada di repo yang sama dengan CRM.py.")
-    st.stop()
+# --- Path Excel ---
+file_path = r"C:\Users\user\Documents\CRM UPGRADE TEXTEK\CRM Analyst.xlsx"
 
 # --- Pilih Sheet ---
 sheet_options = ["VIP BUYER", "Kategori Buyer", "Marketing Ads", "Pertumbuhan Pelanggan", "Produk Populer", "Produk Favorit Customer"]
@@ -98,9 +92,13 @@ elif current_sheet == "Marketing Ads":
     df_marketing = pd.read_excel(file_path, sheet_name="Marketing Ads", engine='openpyxl')
     df_marketing.index = range(1, len(df_marketing)+1)
 
-    # Pie Chart
     st.subheader("Marketing Ads")
-    st.pyplot(df_marketing.plot.pie(y='Jumlah', labels=df_marketing['Channel'], autopct='%1.1f%%').figure)
+    chart = alt.Chart(df_marketing).mark_arc().encode(
+        theta=alt.Theta(field="Jumlah", type="quantitative"),
+        color=alt.Color(field="Channel", type="nominal"),
+        tooltip=['Channel','Jumlah']
+    )
+    st.altair_chart(chart, use_container_width=True)
 
     # Ringkasan insight simple
     top_channel = df_marketing.loc[df_marketing['Jumlah'].idxmax(), 'Channel']
@@ -114,9 +112,7 @@ elif current_sheet == "Pertumbuhan Pelanggan":
     df = pd.read_excel(file_path, sheet_name="Pertumbuhan Pelanggan", engine='openpyxl')
     df.columns = df.columns.str.strip()
     df['Jumlah Pelanggan'] = pd.to_numeric(df['Jumlah Pelanggan'], errors='coerce').fillna(0)
-
-    # Hapus baris kosong / None
-    df = df.dropna(subset=['Bulan','Jumlah Pelanggan']).reset_index(drop=True)
+    df = df.dropna(subset=['Bulan'])
 
     # Session state
     if 'growth_data' not in st.session_state:
@@ -128,7 +124,7 @@ elif current_sheet == "Pertumbuhan Pelanggan":
         bulan = st.text_input("Bulan")
         jumlah = st.number_input("Jumlah Pelanggan", min_value=0, step=1)
         submitted = st.form_submit_button("Tambah")
-        if submitted:
+        if submitted and bulan:
             new_row = pd.DataFrame({'Bulan':[bulan],'Jumlah Pelanggan':[jumlah]})
             st.session_state.growth_data = pd.concat([st.session_state.growth_data, new_row], ignore_index=True)
             st.success(f"{bulan} berhasil ditambahkan!")
@@ -143,23 +139,22 @@ elif current_sheet == "Pertumbuhan Pelanggan":
 
     # --- Tampilkan Tabel ---
     df_display = st.session_state.growth_data.sort_values(by='Jumlah Pelanggan', ascending=False).reset_index(drop=True)
-    df_display.index = range(len(df_display))  # pakai 0-based supaya logika trend bener
+    df_display.index = range(len(df_display))  # mulai dari 0 supaya logika chart stabil
 
-    # Trend: 🔼 top 3 hijau, nomor 3 strip, sisanya 🔽 merah
-    df_display['Trend'] = ''
-    for i in range(len(df_display)):
-        if i < 3:
-            df_display.loc[i, 'Trend'] = '🔼'
-        elif i == 3:
-            df_display.loc[i, 'Trend'] = '—'
-        else:
-            df_display.loc[i, 'Trend'] = '🔽'
+    # Tambah emoji 🔼🔽/—
+    df_display['Trend'] = '🔽'
+    if len(df_display) >= 1:
+        df_display.loc[0,'Trend'] = '🔼'
+    if len(df_display) >= 2:
+        df_display.loc[1,'Trend'] = '🔼'
+    if len(df_display) >= 3:
+        df_display.loc[2,'Trend'] = '—'
 
     st.subheader("Tabel Pertumbuhan Pelanggan")
     st.dataframe(df_display[['Bulan','Jumlah Pelanggan','Trend']])
 
 # =========================
-# SHEET 5: PRODUK POPULER
+# SHEET 5L: PRODUK POPULER
 # =========================
 elif current_sheet == "Produk Populer":
     df = pd.read_excel(file_path, sheet_name="Produk Populer", engine='openpyxl')
